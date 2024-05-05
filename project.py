@@ -18,32 +18,24 @@ def psnprofiles_scraper(url):
     driver = webdriver.Firefox()
     driver.get(url)
     sleep(2)
+    
+    # Cookies is in Iframe so click button from there
+    iframe = driver.find_element(By.CSS_SELECTOR, "iframe[src='https://cdn.privacy-mgmt.com/index.html?hasCsp=true&message_id=1126540&consentUUID=null&preload_message=true&version=v1']")
+    driver.switch_to.frame(iframe) 
+    button = driver.find_element(By.XPATH, "/html/body/div/div[2]/div[3]/div[2]/button")
+    button.click()
+    driver.switch_to.default_content()        
 
-    try:  # Iframe contains cookies so click button there
-        iframe = driver.find_element(By.CSS_SELECTOR, "iframe[src='https://cdn.privacy-mgmt.com/index.html?hasCsp=true&message_id=1126540&consentUUID=null&preload_message=true&version=v1']")
-        driver.switch_to.frame(iframe)
-        button = driver.find_element(By.XPATH, "/html/body/div/div[2]/div[3]/div[2]/button")
-        button.click()
-        driver.switch_to.default_content()        
-    except:
-        print('Failure')
-        pass
-
-    a = driver.find_elements(By.CLASS_NAME, 'grow') # Detects Tips & Strategies Section being picked up and allows for removal from details
+    a = driver.find_elements(By.CLASS_NAME, 'grow')  # Detects Tips & Strategies section and removes it from details
     a = [t.text for t in a]
-    if a.index('GUIDE CONTENTS') - a.index('ROADMAP') != 1:  # Extra section can only be between these two
-        remove_first = 1
-    else:
-        remove_first = 0
      
     trophy = driver.find_elements(By.CSS_SELECTOR, "td[style*='padding']") # Gets Trophy Name & Description
-    details = driver.find_elements(By.CLASS_NAME, 'section-original')  # Gets Trophy Specific details
+    details = driver.find_elements(By.CLASS_NAME, 'section-original')  # Gets Trophy Specific Guide
 
     trophy = [t.text for t in trophy]
-    details = [d.text for d in details]
-    details = details[remove_first:]
-    details.insert(0,'Platinum') # Allows Trophy & Details to be same length
-       
+    details = [d.text[:1500] for d in details]    
+    details = details[1:].insert(0, ' ') if a.index('GUIDE CONTENTS') - a.index('ROADMAP') !=1 else details.insert(0, ' ')
+
     game_name = driver.find_element(By.XPATH, '//*[@id="desc-name"]').text
     driver.quit()
     return (trophy, details, game_name)
@@ -79,27 +71,24 @@ def powerpyx_scraper(url):
 
 
 ### --- CHECK GAME --- ###
-def check_game(DB_ID, game_name):  # Check if game_name exists in database
-    url = f'https://api.notion.com/v1/databases/{DB_ID}'
-    res = requests.get(url, headers=headers)
+def check_game(DB_ID, game_name):  # Check if game_name exists
+    res = requests.get(f'https://api.notion.com/v1/databases/{DB_ID}', headers=headers)
     db_info = res.json()
     options = db_info['properties']['Game']['select']['options']
     
     games = [game['name'] for game in options]  # Gets all game names
     
     if game_name not in games:
-        url = 'https://api.notion.com/v1/pages'
         payload = {"parent": {"database_id": DB_ID},
         "properties": {"Game": {"type": "select", "select": {"name": game_name}}}}
-        
-        res = requests.post(url, json=payload, headers=headers)   
+        res = requests.post('https://api.notion.com/v1/pages', json=payload, headers=headers)        
+ 
 
 
 
 
 ### --- ADD ROW --- ####
 def add_row(DB_ID, data):
-    url = f"https://api.notion.com/v1/pages"
     payload = {
         "parent": {"database_id": DB_ID},
         "properties": {
@@ -110,7 +99,7 @@ def add_row(DB_ID, data):
         }}
     
     for attempt in range(3):
-        res = requests.post(url, json=payload, headers=headers)
+        res = requests.post(f"https://api.notion.com/v1/pages", json=payload, headers=headers)
         if res.status_code == 200:
             print('Succesful')
             return
@@ -123,36 +112,41 @@ def add_row(DB_ID, data):
 
 
 ### --- TRACKER ADDER --- ####
-def tracker_adder(url, DB_ID):
-    if 'powerpyx' in url: # Automatically choses appropriate scraper from url-link
-        returned = powerpyx_scraper(url)
-    elif 'psnprofiles' in url:
-        returned = psnprofiles_scraper(url)
-        
-        
-    trophy_list = [t.split('\n') for t in returned[0]] # Fixes Format
-    trophy_list = [t for t in trophy_list if len(t)>1] # Removes irrelevant lists
-    trophy_list = [i for i in trophy_list if all(x not in i[0] for x in ['Trophy Guide', 'Collectibles'])]  # Removes Extra pick ups
-
-    details_list = [d.replace('\n', ' ') for d in returned[1]] # Fixes Format
-
-    game_name = returned[2].replace(' Trophy Roadmap', '')  # Ensures only name captured
-    game_name = returned[2].replace(' Trophy Guide', '') 
-    
+def tracker_adder(url, DB_ID): 
     check_game(DB_ID, game_name)
     
-    for i in range (0, len(details_list)):
-        t, d, n = f'{trophy_list[i][0]}', f'{trophy_list[i][1]}', f'{details_list[i]}'
-
-        new_row = {'Trophy':t, 'Details':d, 'Notes':n[:1999], 'Game':game_name}  # 2000 characters rate limit
-        add_row(DB_ID, new_row)
+    for key in data:
+        add_row(DB_ID, data[key])
 
 
 
-### --- ACTIVATE SCRIPT --- ###
-url = ""
+url = 'https://psnprofiles.com/guide/14008-elden-ring-trophy-guide'
+if 'powerpyx' in url: # Automatically choses appropriate scraper from url-link
+    returned = powerpyx_scraper(url)
+elif 'psnprofiles' in url:
+    returned = psnprofiles_scraper(url)
+
+
+
+
+trophy_list = [t.split('\n') for t in returned[0]] # Fixes Format
+trophy_list = [t for t in trophy_list if len(t)>1] # Removes irrelevant lists
+trophy_list = [i for i in trophy_list if all(x not in i[0] for x in ['Trophy Guide', 'Collectibles', 'Walkthrough', '100%'])]  # Removes Extra pick ups
+
+details_list = [d.replace('\n', ' ') for d in returned[1]] # Fixes Format
+
+game_name = returned[2].replace(' Trophy Roadmap', '')  # Ensures only name captured
+game_name = returned[2].replace(' Trophy Guide', '')
+
+
+
+length = len(trophy_list)
+data = {}
+for i in range(0,length):
+    data[i] = {'Trophy': trophy_list[i][0], 'Details': trophy_list[i][1], 'Notes': details_list[i][:1500], 'Game': game_name}
+
 tracker_adder(url, DB_ID)
 
 
 
-
+  
