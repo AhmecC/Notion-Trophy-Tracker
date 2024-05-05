@@ -3,13 +3,15 @@ from selenium.webdriver.common.by import By
 import pandas as pd
 from time import sleep
 import requests
+
 API_KEY = ""
 DB_ID = ""
+headers = {"Authorization" : "Bearer " + API_KEY,
+           "Content-Type" : "application/json",
+           "Notion-Version" : "2022-06-28"}
 
-headers = {
-    "Authorization" : "Bearer " + API_KEY,
-    "Content-Type" : "application/json",
-    "Notion-Version" : "2022-06-28"}
+
+
 
 ### --- PSN PROFILES SCRAPER --- ###
 def psnprofiles_scraper(url):
@@ -27,8 +29,7 @@ def psnprofiles_scraper(url):
         print('Failure')
         pass
 
-    # Detects Tips & Strategies Section being picked up and allows for removal from details
-    a = driver.find_elements(By.CLASS_NAME, 'grow')
+    a = driver.find_elements(By.CLASS_NAME, 'grow') # Detects Tips & Strategies Section being picked up and allows for removal from details
     a = [t.text for t in a]
     if a.index('GUIDE CONTENTS') - a.index('ROADMAP') != 1:  # Extra section can only be between these two
         remove_first = 1
@@ -46,6 +47,7 @@ def psnprofiles_scraper(url):
     game_name = driver.find_element(By.XPATH, '//*[@id="desc-name"]').text
     driver.quit()
     return (trophy, details, game_name)
+
 
 
 
@@ -73,6 +75,9 @@ def powerpyx_scraper(url):
 
 
 
+
+
+
 ### --- CHECK GAME --- ###
 def check_game(DB_ID, game_name):  # Check if game_name exists in database
     url = f'https://api.notion.com/v1/databases/{DB_ID}'
@@ -88,6 +93,7 @@ def check_game(DB_ID, game_name):  # Check if game_name exists in database
         "properties": {"Game": {"type": "select", "select": {"name": game_name}}}}
         
         res = requests.post(url, json=payload, headers=headers)   
+
 
 
 
@@ -114,6 +120,8 @@ def add_row(DB_ID, data):
             sleep(1)
 
 
+
+
 ### --- TRACKER ADDER --- ####
 def tracker_adder(url, DB_ID):
     if 'powerpyx' in url: # Automatically choses appropriate scraper from url-link
@@ -129,9 +137,7 @@ def tracker_adder(url, DB_ID):
     details_list = [d.replace('\n', ' ') for d in returned[1]] # Fixes Format
 
     game_name = returned[2].replace(' Trophy Roadmap', '')  # Ensures only name captured
-    game_name = returned[2].replace(' Trophy Guide', '')
-    
-    
+    game_name = returned[2].replace(' Trophy Guide', '') 
     
     check_game(DB_ID, game_name)
     
