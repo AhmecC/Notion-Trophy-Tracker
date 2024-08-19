@@ -122,7 +122,7 @@ def add_row(DB_ID, data):
             "properties": {
                 "Trophy": {"title": [{"text": {"content": data["Trophy"]}}]},
                 "Details": {"rich_text": [{"text": {"content": data["Details"]}}]},
-                "Notes": {"rich_text", [{"text": {"content": data["Notes"]}}]},
+                "Notes": {"rich_text": [{"text": {"content": data["Notes"]}}]},
                 "Game": {"select": {"name": data["Game"]}}
             }}
     elif returned[2] == 1:  # No Notes so can omit here
